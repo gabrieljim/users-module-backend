@@ -1,6 +1,4 @@
 const User = require("../models/User");
-//const ResetPasswordToken = require("../models/ResetPasswordToken");
-
 const utils = require("./utils/userUtils");
 
 exports.allowIfLoggedIn = async (req, res, next) => {
@@ -48,7 +46,7 @@ exports.register = async (req, res) => {
 		res.status(200).json({ user, token });
 	} catch (e) {
 		console.log(e);
-		res.json({error: "l"})
+		res.json({ error: "l" });
 	}
 };
 
@@ -95,14 +93,15 @@ exports.logIn = async (req, res) => {
 		}
 
 		const payload = {
-			id: user.dataValues.id,
-			username: user.dataValues.username,
-			email: user.dataValues.email,
+			id: user._id,
+			username: user.username,
+			email: user.email
 		};
 
 		const token = await utils.generateJWTToken(payload, { expiresIn: "1h" });
 		res.status(200).json({ user: payload, token });
 	} catch (e) {
+		console.log(e);
 		res.status(400).json({ e });
 	}
 };
@@ -110,7 +109,7 @@ exports.logIn = async (req, res) => {
 exports.update = async (req, res) => {
 	const { changes, id } = req.body;
 	try {
-		await User.update(changes, { where: { id } });
+		await User.findByIdAndUpdate(id, changes);
 		res.status(200).json({ msg: "Updated succesfully" });
 	} catch (e) {
 		res.status(400).json({ e });
@@ -120,28 +119,25 @@ exports.update = async (req, res) => {
 exports.requestNewPassword = async (req, res) => {
 	try {
 		const email = req.body.email;
-		const user = await User.findOne({ where: { email } });
+		const user = await User.findOne({ email });
 
 		if (!user) {
 			return res.status(400).json({ error: "Email no encontrado" });
 		}
 
-		const tokens = await utils.generateResetPasswordToken();
+		const token = await utils.generateResetPasswordToken();
 
-		const userToUpdate = await ResetPasswordToken.findOne({ where: { email } });
-		if (userToUpdate) {
-			userToUpdate.token = tokens.JWTTokenForDatabase;
-			userToUpdate.save();
-		} else {
-			ResetPasswordToken.create({ email, token: tokens.JWTTokenForDatabase });
-		}
+		user.passwordResetToken = token.data;
+		user.passwordResetExpiration = token.exp;
 
-		await utils.mail(user.id, email, tokens.encryptedToken);
+		await user.save();
+
+		await utils.mail(user._id, email, token.data);
 
 		res.json({ message: "success" });
-	} catch (error) {
-		console.log(error);
-		res.json({ error });
+	} catch (e) {
+		console.log(e);
+		res.json({ e });
 	}
 };
 
@@ -149,45 +145,26 @@ exports.updatePassword = async (req, res) => {
 	const { id, password } = req.body;
 	const token = decodeURIComponent(req.body.token);
 
-	const user = await User.findOne({ where: { id } });
+	const user = await User.findOne({
+		_id: id,
+		passwordResetToken: token,
+		passwordResetExpiration: { $gt: Date.now() }
+	});
 
 	if (!user) {
-		return res.status(400).json({ error: "Usuario no existente" });
-	}
-
-	const email = user.email;
-	const tokenJWT = await ResetPasswordToken.findOne({ where: { email } });
-
-	if (!tokenJWT) {
-		return res.status(400).json({ error: "Token inválido" });
+		return res.status(400).json({ error: "Token inexistente o vencido" });
 	}
 
 	try {
-		const resetPasswordJWT = await utils.validateToken(tokenJWT.token);
-		const resetPasswordToken = resetPasswordJWT.data;
-
-		const tokenIsValid = await utils.compareEncryptedString(
-			resetPasswordToken,
-			token
-		);
-
-		if (!tokenIsValid) {
-			return res.status(400).json({ error: "Token inválido" });
-		}
-
-		tokenJWT.destroy();
-
 		user.password = await utils.encrypt(password);
+		user.passwordResetToken = undefined;
+		user.passwordResetExpiration = undefined;
 		await user.save();
 
 		res.status(200).json({ message: "Password updated" });
 	} catch (e) {
-		if (e.name === "TokenExpiredError") {
-			res.status(400).json({ error: "Token expirado" });
-		} else {
-			console.log(e);
-			res.status(500).json({ error: e });
-		}
+		console.log(e);
+		res.status(500).json({ error: e });
 	}
 };
 

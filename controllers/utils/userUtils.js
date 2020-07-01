@@ -1,62 +1,61 @@
-encrypt = async target => {
-  const bcrypt = require("bcrypt");
-  const saltRounds = 6;
-  const encryptedTarget = await bcrypt.hash(target, saltRounds);
-  return encryptedTarget;
+const encrypt = async target => {
+	const bcrypt = require("bcrypt");
+	const saltRounds = 6;
+	const encryptedTarget = await bcrypt.hash(target, saltRounds);
+	return encryptedTarget;
 };
 
-compareEncryptedString = (plainTextString, encryptedString) => {
-  const bcrypt = require("bcrypt");
-  return bcrypt.compare(plainTextString, encryptedString);
+const compareEncryptedString = (plainTextString, encryptedString) => {
+	const bcrypt = require("bcrypt");
+	return bcrypt.compare(plainTextString, encryptedString);
 };
 
-generateJWTToken = async (data, options = {}) => {
-  const jwt = require("jsonwebtoken");
-  const token = jwt.sign(data, process.env.SECRET, options);
-  return token;
+const generateJWTToken = async (data, options = {}) => {
+	const jwt = require("jsonwebtoken");
+	const token = jwt.sign(data, process.env.SECRET, options);
+	return token;
 };
 
-validateToken = async token => {
-  const jwt = require("jsonwebtoken");
-  return await jwt.verify(token, process.env.SECRET);
+const validateToken = token => {
+	const jwt = require("jsonwebtoken");
+	return jwt.verify(token, process.env.SECRET);
 };
 
-mail = async (id, email, token) => {
-  const transporter = require("../../config/mailConfig");
-  const mailOptions = {
-    from: '"No Contestar" no_contestar@tecnofep.com.ve',
-    to: email,
-    subject: "Reinicio de contraseña",
-    html: `<a href="${process.env.CLIENT_URL}/${id}/${encodeURIComponent(
-      token
-    )}">Resetear contraseña</a>`
-  };
-  const mailSent = transporter.sendMail(mailOptions);
-  return mailSent;
+const mail = async (id, email, token) => {
+	const transporter = require("../../config/transporter");
+	const mailOptions = {
+		from: "Gabriel <gabrieljim@airmail.cc>",
+		to: email,
+		subject: "Reinicio de contraseña",
+		html: `<a href="${process.env.CLIENT_URL}/${id}/${encodeURIComponent(
+			token
+		)}">Resetear contraseña</a>`
+	};
+	const mailSent = transporter.sendMail(mailOptions);
+	return mailSent;
 };
 
-generateResetPasswordToken = async () => {
-  const crypto = require("crypto");
-  const cryptoToken = crypto.randomBytes(32).toString("hex");
-  const resetPasswordTokenInfo = {
-    data: cryptoToken,
-    exp: Math.floor(Date.now() / 1000) + 60 * 60
-  };
+const generateResetPasswordToken = async () => {
+	Date.prototype.addHours = function(h) {
+		this.setTime(this.getTime() + (h*60*60*1000));
+		return this;
+	}
 
-  const JWTTokenForDatabase = await generateJWTToken(resetPasswordTokenInfo);
-  const encryptedToken = await encrypt(cryptoToken);
-  return { JWTTokenForDatabase, encryptedToken };
-};
+	const crypto = require("crypto");
+	const cryptoToken = crypto.randomBytes(32).toString("hex");
+	const resetPasswordTokenInfo = {
+		data: cryptoToken,
+		exp: new Date().addHours(1)
+	};
 
-compareExpirationTime = (currentDate, tokenDate) => {
-  return currentDate > tokenDate;
+	return resetPasswordTokenInfo;
 };
 
 module.exports = {
-  encrypt,
-  compareEncryptedString,
-  generateJWTToken,
-  validateToken,
-  mail,
-  generateResetPasswordToken
+	encrypt,
+	compareEncryptedString,
+	generateJWTToken,
+	validateToken,
+	mail,
+	generateResetPasswordToken
 };
