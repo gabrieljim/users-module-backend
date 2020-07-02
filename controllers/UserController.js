@@ -12,14 +12,16 @@ exports.allowIfLoggedIn = async (req, res, next) => {
 	}
 
 	try {
-		const user = await utils.validateToken(token);
+		const user = utils.validateToken(token);
 		res.locals.user = user;
 		next();
 	} catch (e) {
 		if (e.name === "TokenExpiredError") {
 			res.status(400).json({ error: "Sesión expirada" });
+		} else if (e.name === "JsonWebTokenError") {
+			res.status(400).json({ error: "Token inválido" });
 		} else {
-			res.status(500).json({ error: e });
+			res.status(500).json({ error: e.message });
 		}
 	}
 };
@@ -45,8 +47,9 @@ exports.register = async (req, res) => {
 
 		res.status(200).json({ user, token });
 	} catch (e) {
-		console.log(e);
-		res.json({ error: "l" });
+		if (e.code === 11000) {
+			res.status(400).json({ error: "Usuario existente" });
+		}
 	}
 };
 
@@ -69,9 +72,9 @@ exports.createUser = async (req, res) => {
 
 		res.status(200).json({ user });
 	} catch (e) {
-		const errors = [];
-		e.errors.map(error => errors.push(error));
-		res.status(400).json({ errors });
+		if (e.code === 11000) {
+			res.status(400).json({ error: "Usuario existente" });
+		}
 	}
 };
 
@@ -109,7 +112,7 @@ exports.logIn = async (req, res) => {
 exports.update = async (req, res) => {
 	const { changes, id } = req.body;
 	try {
-		await User.findByIdAndUpdate(id, changes);
+		await User.findByIdAndUpdate(id, changes)
 		res.status(200).json({ msg: "Updated succesfully" });
 	} catch (e) {
 		res.status(400).json({ e });
@@ -169,6 +172,6 @@ exports.updatePassword = async (req, res) => {
 };
 
 exports.getUsers = async (_, res) => {
-	const users = await User.findAll();
+	const users = await User.find({});
 	res.json({ users });
 };

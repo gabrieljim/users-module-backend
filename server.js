@@ -10,9 +10,10 @@ mongoose.connect(process.env.DB_URI, {
 	useUnifiedTopology: true,
 	useCreateIndex: true
 });
+mongoose.set('useFindAndModify', false);
 
 const app = express();
-app.use(express.static(path.join(__dirname, "../client/build")))
+app.use(express.static(path.join(__dirname, "client/build")))
 
 app.use(express.json());
 
@@ -21,7 +22,7 @@ const users = require("./routes/users");
 app.use("/users", users);
 
 app.get("*", (_, res) => {
-	res.sendFile(path.join(__dirname + "../client/build/index.html"));
+	res.sendFile(path.join(__dirname + "/client/build/index.html"));
 })
 
 app.listen(process.env.PORT, () =>
